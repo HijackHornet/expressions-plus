@@ -49,6 +49,11 @@
     box-shadow: 0 2px 6px var(--black30a);
 }
 
+/* Hides scenario name labels when the "Show character name above sprite" setting is off */
+#visual-novel-plus-wrapper.expressions_plus_hide_scenario_labels .expression-plus-scenario-label {
+    display: none;
+}
+
 #visual-novel-plus-wrapper .hidden {
     display: none !important;
     visibility: hidden !important;
@@ -340,7 +345,7 @@ img.expression-plus.default {
 
 #expressions_plus_wand_dropdown {
     position: absolute;
-    z-index: 9999;
+    z-index: 9999999;
     background: var(--SmartThemeBlurTintColor);
     border: 1px solid var(--SmartThemeBorderColor);
     border-radius: 5px;

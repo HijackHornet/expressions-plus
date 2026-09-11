@@ -30,6 +30,8 @@ import {
     clearSegmentState,
     currentCharacterAvatar,
     setCurrentCharacterAvatar,
+    lastScenarioDetected,
+    characterSegmentResults,
 } from './src/state.js';
 
 import {
@@ -63,6 +65,7 @@ import {
     getFolderNameByMessage,
     getLastCharacterMessage,
     getSpriteFolderName,
+    getScenarioCharacterAssignmentKey,
 } from './src/sprites.js';
 
 import {
@@ -397,6 +400,18 @@ async function addSettings() {
 // ============================================================================
 
 /**
+ * Escapes text for safe interpolation into HTML built with .html()
+ * @param {string} text
+ * @returns {string}
+ */
+function escapeWandHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = String(text);
+    return div.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+/**
  * Adds the expression set button to the wand menu
  */
 async function addWandButton() {
@@ -454,9 +469,7 @@ async function addWandButton() {
         $(document).on('click', '.expressions_plus_wand_set_item', async function() {
             const setFolder = String($(this).data('set-folder') || '');
             const setName = $(this).data('set-name');
-            
-            const currentMessage = getLastCharacterMessage();
-            const characterId = getFolderNameByMessage(currentMessage);
+            const characterId = String($(this).data('character-key') || '');
             
             if (characterId) {
                 setCharacterExpressionSet(characterId, setFolder);
@@ -481,37 +494,86 @@ async function addWandButton() {
 }
 
 /**
- * Loads available expression sets into the wand dropdown
+ * Builds the <li> markup for one expression-set entry, scoped to a given character key
+ * @param {string} characterKey - Settings key this assignment is stored under
+ * @param {import('./src/constants.js').ExpressionSet[]} sets
+ * @param {string} currentSet
+ * @returns {string}
+ */
+function renderWandSetItems(characterKey, sets, currentSet) {
+    if (sets.length === 0) {
+        return '<li class="list-group-item">No expression sets configured</li>';
+    }
+    let html = '';
+    const safeKey = escapeWandHtml(characterKey);
+    for (const set of sets) {
+        const isActive = set.folder === currentSet;
+        const activeClass = isActive ? 'expressions_plus_wand_set_active' : '';
+        const activeIcon = isActive ? '<i class="fa-solid fa-check"></i> ' : '';
+        const safeFolder = escapeWandHtml(set.folder);
+        const safeName = escapeWandHtml(set.name);
+        html += `<li class="list-group-item expressions_plus_wand_set_item ${activeClass}" data-character-key="${safeKey}" data-set-folder="${safeFolder}" data-set-name="${safeName}">${activeIcon}${safeName}</li>`;
+    }
+    return html;
+}
+
+/**
+ * Loads available expression sets into the wand dropdown.
+ * In scenario mode, shows one group per detected character so each can be switched independently.
  */
 function loadWandDropdownSets() {
     const dropdown = $('#expressions_plus_wand_dropdown ul');
     const currentMessage = getLastCharacterMessage();
-    const characterId = getFolderNameByMessage(currentMessage);
+    const mainCharacterId = getFolderNameByMessage(currentMessage);
     
-    if (!characterId) {
-        dropdown.html('<span>Switch expression set to:</span><li class="list-group-item">No character selected</li>');
+    if (lastScenarioDetected && Object.keys(characterSegmentResults).length > 0) {
+        try {
+            const mainSpriteFolderName = getSpriteFolderName(
+                currentMessage,
+                currentMessage.name,
+            );
+            let html = '';
+            for (const charName of Object.keys(characterSegmentResults)) {
+                const characterKey = getScenarioCharacterAssignmentKey(
+                    charName,
+                    mainSpriteFolderName,
+                );
+                const sets = getExpressionSets(characterKey);
+                const currentSet = getCharacterExpressionSet(characterKey);
+                html += `<span>${escapeWandHtml(charName)}:</span>`;
+                html += renderWandSetItems(characterKey, sets, currentSet);
+            }
+            dropdown.html(html);
+        } catch (error) {
+            console.error(
+                'Expressions+: Error loading scenario expression sets:',
+                error,
+            );
+            dropdown.html(
+                '<span>Switch expression set to:</span><li class="list-group-item">Error loading sets</li>',
+            );
+        }
+        return;
+    }
+    
+    if (!mainCharacterId) {
+        dropdown.html(
+            '<span>Switch expression set to:</span><li class="list-group-item">No character selected</li>',
+        );
         return;
     }
     try {
-        const sets = getExpressionSets(characterId);
-        const currentSet = getCharacterExpressionSet(characterId);
-        
-        let html = '<span>Switch expression set to:</span>';
-        
-        if (sets.length === 0) {
-            html += '<li class="list-group-item">No expression sets configured</li>';
-        } else {
-            for (const set of sets) {
-                const isActive = set.folder === currentSet;
-                const activeClass = isActive ? 'expressions_plus_wand_set_active' : '';
-                const activeIcon = isActive ? '<i class="fa-solid fa-check"></i> ' : '';
-                html += `<li class="list-group-item expressions_plus_wand_set_item ${activeClass}" data-set-folder="${set.folder}" data-set-name="${set.name}">${activeIcon}${set.name}</li>`;
-            }
-        }
+        const sets = getExpressionSets(mainCharacterId);
+        const currentSet = getCharacterExpressionSet(mainCharacterId);
+        const html =
+            '<span>Switch expression set to:</span>' +
+            renderWandSetItems(mainCharacterId, sets, currentSet);
         dropdown.html(html);
     } catch (error) {
         console.error('Expressions+: Error loading expression sets:', error);
-        dropdown.html('<span>Switch expression set to:</span><li class="list-group-item">Error loading sets</li>');
+        dropdown.html(
+            '<span>Switch expression set to:</span><li class="list-group-item">Error loading sets</li>',
+        );
     }
 }
 
@@ -646,14 +708,36 @@ function addVisualNovelMode() {
     eventSource.on(event_types.GROUP_UPDATED, updateVisualNovelModeDebounced);
 
     window.addEventListener('expressionSetChanged', async (event) => {
-        const { characterId, expressionSet } = /** @type {CustomEvent} */ (event).detail;
-        console.debug('Expressions+: Expression set changed', { characterId, expressionSet });
+        const { characterId, expressionSet } = /** @type {CustomEvent} */ (event)
+            .detail;
+        console.debug('Expressions+: Expression set changed', {
+            characterId,
+            expressionSet,
+        });
+        
+        if (lastScenarioDetected) {
+            // Scenario mode renders all detected characters at once — just re-run the display
+            const currentMessage = getLastCharacterMessage();
+            const mainSpriteFolderName = getSpriteFolderName(
+                currentMessage,
+                currentMessage.name,
+            );
+            const currentExpression =
+                lastExpression[mainSpriteFolderName.split('/')[0]] || null;
+            await sendExpressionCall(mainSpriteFolderName, currentExpression, {
+                force: true,
+            });
+            return;
+        }
+        
         const baseCharacterName = characterId.split('/')[0];
         const currentExpression = lastExpression[baseCharacterName] || 'neutral';
-        const spriteFolderName = expressionSet 
+        const spriteFolderName = expressionSet
             ? `${characterId}/${expressionSet}`
             : characterId;
-        await sendExpressionCall(spriteFolderName, currentExpression, { force: true });
+        await sendExpressionCall(spriteFolderName, currentExpression, {
+            force: true,
+        });
     });
 
     // Listen for resize events from dragElement to save per-character layout

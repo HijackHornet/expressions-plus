@@ -159,6 +159,7 @@ export function getDefaultSettings() {
             italic_markdown: false,
         },
         scenarioCustomPatterns: [],
+        scenarioShowNameLabels: true,
 
         characterLayouts: {},
     };
@@ -451,6 +452,9 @@ export async function migrateSettings() {
         }
         if (settings.scenarioCustomEnabled === undefined) {
             settings.scenarioCustomEnabled = false;
+        }
+        if (settings.scenarioShowNameLabels === undefined) {
+            settings.scenarioShowNameLabels = true;
         }
 
         settings._v040ScenarioMigrationApplied = true;

@@ -32,6 +32,14 @@ export function initScenarioSettings() {
             setLastMessage(null);
         });
 
+    $('#expressions_plus_scenario_show_labels')
+        .prop('checked', settings.scenarioShowNameLabels ?? true)
+        .on('change', function () {
+            settings.scenarioShowNameLabels = $(this).prop('checked');
+            saveSettingsDebounced();
+            $('#visual-novel-plus-wrapper').toggleClass('expressions_plus_hide_scenario_labels', !settings.scenarioShowNameLabels);
+        });
+
     // Built-in pattern toggles
     const patternMap = {
         '#expressions_plus_scenario_pattern_bold': 'bold_markdown',
@@ -92,7 +100,7 @@ function escapeHtml(text) {
     if (!text) return '';
     const div = document.createElement('div');
     div.textContent = text;
-    return div.innerHTML;
+    return div.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
 /**

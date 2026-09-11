@@ -232,6 +232,52 @@ export function getSpriteFolderName(characterMessage = null, characterName = nul
 }
 
 /**
+ * Resolves a sprite folder for an arbitrary display name by matching it against
+ * actual character cards loaded in this chat. Used by scenario mode to let a
+ * detected in-message speaker (e.g. "Alice") use her own character card's
+ * sprites/expression set instead of the narrating card's folder.
+ * @param {string} name - Display name detected in a scenario segment
+ * @returns {string|null} Sprite folder name, or null if no matching character card exists
+ */
+export function getSpriteFolderNameForCharacterName(name) {
+    if (!name) return null;
+    const context = getContext();
+    const character = context.characters?.find(c => c.name?.toLowerCase() === name.toLowerCase());
+    if (!character) return null;
+
+    const avatarFileName = character.avatar?.replace(/\.[^/.]+$/, '');
+    let spriteFolderName = character.name;
+
+    const expressionOverride = extension_settings.expressionOverrides?.find(e => e.name == avatarFileName);
+    if (expressionOverride && expressionOverride.path) {
+        spriteFolderName = expressionOverride.path;
+    }
+
+    const expressionSet = getCharacterExpressionSetFromSettings(avatarFileName);
+    if (expressionSet && expressionSet !== DEFAULT_EXPRESSION_SET && expressionSet !== DEFAULT_PLUS_EXPRESSION_SET) {
+        spriteFolderName = `${spriteFolderName}/${expressionSet}`;
+    }
+
+    return spriteFolderName;
+}
+
+/**
+ * Resolves the settings key used to store a scenario character's expression-set
+ * assignment: the real character card's name if one matches, otherwise a synthetic
+ * key scoped to the narrating card's folder (e.g. "Narrator/Alice"). This same key
+ * is also the base sprite folder path used to fetch her sprites.
+ * @param {string} charName - Detected character name from scenario parsing
+ * @param {string} mainSpriteFolderName - The narrating card's sprite folder
+ * @returns {string}
+ */
+export function getScenarioCharacterAssignmentKey(charName, mainSpriteFolderName) {
+    const context = getContext();
+    const character = context.characters?.find(c => c.name?.toLowerCase() === charName.toLowerCase());
+    if (character) return character.name;
+    return `${mainSpriteFolderName}/${charName}`;
+}
+
+/**
  * Gets the base sprite folder name without expression set
  * @param {Object} [characterMessage] 
  * @param {string} [characterName] 
