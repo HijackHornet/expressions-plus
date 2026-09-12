@@ -8,6 +8,7 @@ import {
     restoreCharacterLayout,
     clearHolderMovingUIState,
     onHolderResized,
+    saveScenarioLayout,
     resetAllCharacterLayouts,
 } from './src/sprite-layout.js';
 
@@ -626,6 +627,16 @@ function addVisualNovelMode() {
         saveCurrentCharacterLayout();
     });
 
+    $(document).on('mouseup', '.expression-plus-holder[data-scenario-char]', function () {
+        const settings = getSettings();
+        if (!settings.scenarioFixedLayout) return;
+        const characterName = $(this).attr('data-scenario-char');
+        if (characterName) {
+            $(this).data('scenario-layout-saved', true);
+            saveScenarioLayout(characterName, this);
+        }
+    });
+
     eventSource.on(event_types.CHAT_CHANGED, () => {
         // Save outgoing character's layout before clearing
         saveCurrentCharacterLayout();
@@ -743,6 +754,15 @@ function addVisualNovelMode() {
     // Listen for resize events from dragElement to save per-character layout
     eventSource.on('resizeUI', (elementId) => {
         onHolderResized(elementId);
+        if (typeof elementId === 'string' && elementId.startsWith('expression-plus-scenario-')) {
+            const holder = document.getElementById(elementId);
+            const settings = getSettings();
+            const characterName = holder?.getAttribute('data-scenario-char');
+            if (settings.scenarioFixedLayout && holder && characterName) {
+                $(holder).data('scenario-layout-saved', true);
+                saveScenarioLayout(characterName, holder);
+            }
+        }
     });
 
     console.log('Expressions+ extension loaded');

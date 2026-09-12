@@ -40,6 +40,33 @@ export function initScenarioSettings() {
             $('#visual-novel-plus-wrapper').toggleClass('expressions_plus_hide_scenario_labels', !settings.scenarioShowNameLabels);
         });
 
+    $('#expressions_plus_scenario_missing_messages')
+        .val(Math.max(1, Math.min(20, Number(settings.scenarioMissingMessages) || 1)))
+        .on('change', function () {
+            settings.scenarioMissingMessages = Math.max(1, Math.min(20, Number($(this).val()) || 1));
+            $(this).val(settings.scenarioMissingMessages);
+            saveSettingsDebounced();
+        });
+
+    $('#expressions_plus_scenario_fixed_layout')
+        .prop('checked', settings.scenarioFixedLayout ?? false)
+        .on('change', function () {
+            settings.scenarioFixedLayout = $(this).prop('checked');
+            if (!settings.scenarioFixedLayout) {
+                // Remove only the marker created by fixed-layout restoration.
+                // Normal manual dragging remains handled by the existing layout logic.
+                $('#visual-novel-plus-wrapper .expression-plus-holder[data-scenario-char]').each((_, element) => {
+                    const holder = $(element);
+                    if (holder.data('scenario-layout-saved')) {
+                        holder.removeData('scenario-layout-saved');
+                        holder.removeData('dragged');
+                    }
+                });
+            }
+            saveSettingsDebounced();
+            setLastMessage(null);
+        });
+
     // Built-in pattern toggles
     const patternMap = {
         '#expressions_plus_scenario_pattern_bold': 'bold_markdown',

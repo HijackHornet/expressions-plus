@@ -4,6 +4,7 @@
 
 import { getContext } from '../../../../extensions.js';
 import { dragElement } from '../../../../RossAscends-mods.js';
+import { getScenarioLayout } from './sprite-layout.js';
 import { power_user } from '../../../../power-user.js';
 
 import { RESET_SPRITE_LABEL, DEFAULT_EXPRESSION_SET, DEFAULT_PLUS_EXPRESSION_SET } from './constants.js';
@@ -332,6 +333,14 @@ async function updateScenarioDisplay(mainSpriteFolderName) {
 
             vnWrapper.append(template);
             dragElement($(template[0]));
+            if (settings.scenarioFixedLayout) {
+                const savedLayout = getScenarioLayout(charName);
+                if (savedLayout) {
+                    template.css(savedLayout);
+                    template.data('dragged', true);
+                    template.data('scenario-layout-saved', true);
+                }
+            }
             template.toggleClass('hidden', !shouldShow);
             img = template.find('img');
             img.removeAttr('id');
@@ -363,6 +372,7 @@ async function updateScenarioDisplay(mainSpriteFolderName) {
  * @param {JQuery} container - The VN wrapper container
  */
 async function positionScenarioSprites(container) {
+    const settings = getSettings();
     const images = container.find('.expression-plus-holder[data-scenario-char]:not(.hidden)').toArray();
     if (images.length === 0) return;
 
@@ -402,6 +412,12 @@ async function positionScenarioSprites(container) {
         const elId = el.attr('id');
 
         // Don't reposition if user has dragged it or it has saved movingUIState
+        if (settings.scenarioFixedLayout && el.data('scenario-layout-saved')) {
+            el.css('z-index', i === images.length - 1 ? maxZ : i);
+            currentPosition += widths[i];
+            continue;
+        }
+
         if (el.data('dragged') ||
             (elId && power_user.movingUIState?.[elId] &&
              typeof power_user.movingUIState[elId] === 'object' &&

@@ -160,6 +160,9 @@ export function getDefaultSettings() {
         },
         scenarioCustomPatterns: [],
         scenarioShowNameLabels: true,
+        scenarioMissingMessages: 1,
+        scenarioFixedLayout: false,
+        scenarioLayouts: {},
 
         characterLayouts: {},
     };
@@ -456,6 +459,15 @@ export async function migrateSettings() {
         if (settings.scenarioShowNameLabels === undefined) {
             settings.scenarioShowNameLabels = true;
         }
+        if (settings.scenarioMissingMessages === undefined) {
+            settings.scenarioMissingMessages = defaults.scenarioMissingMessages;
+        }
+        if (settings.scenarioFixedLayout === undefined) {
+            settings.scenarioFixedLayout = defaults.scenarioFixedLayout;
+        }
+        if (!settings.scenarioLayouts || typeof settings.scenarioLayouts !== 'object') {
+            settings.scenarioLayouts = {};
+        }
 
         settings._v040ScenarioMigrationApplied = true;
         saveSettingsDebounced();
@@ -492,6 +504,12 @@ export async function migrateSettings() {
         delete settings.scenarioCustomRegex;
         delete settings.scenarioCustomFlags;
         settings._v041ScenarioPatternsMigrationApplied = true;
+        saveSettingsDebounced();
+    }
+
+    // v0.4.2 — retain scenario sprites for a configurable number of absent messages
+    if (settings.scenarioMissingMessages === undefined) {
+        settings.scenarioMissingMessages = getDefaultSettings().scenarioMissingMessages;
         saveSettingsDebounced();
     }
 }
