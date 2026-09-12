@@ -9,7 +9,7 @@ All the functionality of SillyTavern's built-in Expressions extension (local cla
 3. Paste this URL into the input field:
 
    ```none
-   https://github.com/tyranomaster/expressions-plus
+   https://github.com/HijackHornet/expressions-plus
    ```
 
 4. Click **Save** and wait for the extension to download
