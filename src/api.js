@@ -11,7 +11,7 @@ import { getRequestHeaders, substituteParams } from '../../../../../script.js';
 import { trimToEndSentence, trimToStartSentence } from '../../../../utils.js';
 import { getContext } from '../../../../extensions.js';
 
-import { insightPanelVisible, characterSegmentResults, setLastClassificationScores, setLastSegmentResults, setCharacterSegmentResults, clearCharacterSegmentResults, clearScenarioMissingCharacterCounts, setLastScenarioDetected, scenarioMissingCharacterCounts, setScenarioMissingCharacterCount } from './state.js';
+import { insightPanelVisible, characterSegmentResults, lastSegmentResults, lastScenarioDetected, setLastClassificationScores, setLastSegmentResults, setCharacterSegmentResults, clearCharacterSegmentResults, clearScenarioMissingCharacterCounts, setLastScenarioDetected, scenarioMissingCharacterCounts, setScenarioMissingCharacterCount } from './state.js';
 import { getSettings } from './settings.js';
 import { DEFAULT_SAMPLE_SIZE } from './constants.js';
 import { selectExpression } from './classification.js';
@@ -227,6 +227,7 @@ export async function classifyMessageSegments(text) {
 export async function getExpressionLabel(text, cardCharacterName) {
     const settings = getSettings();
     const context = getContext();
+    const hadScenarioState = lastScenarioDetected && Object.keys(characterSegmentResults).length > 0;
 
     // Scenario mode: try to detect multi-character message first
     // Skip in group chats — each character sends their own messages there
@@ -235,6 +236,17 @@ export async function getExpressionLabel(text, cardCharacterName) {
         const scenarioResult = await classifyScenarioMessage(text, cardCharacterName);
         if (scenarioResult) {
             return scenarioResult.expression;
+        }
+
+        // Scenario detection intentionally requires at least two meaningful
+        // segments. During streaming, a new message can temporarily contain
+        // only one marker (or just the model's thinking placeholder). Do not
+        // switch to single-sprite mode in that transient state: doing so
+        // clears the VN holders and makes every retained sprite disappear.
+        if (hadScenarioState) {
+            const previousResult = lastSegmentResults?.[lastSegmentResults.length - 1];
+            setLastScenarioDetected(true);
+            return previousResult?.expression || null;
         }
     }
 
