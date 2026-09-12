@@ -4,14 +4,16 @@
 
 import { getContext } from '../../../../extensions.js';
 import { dragElement } from '../../../../RossAscends-mods.js';
+import { getScenarioLayout } from './sprite-layout.js';
 import { power_user } from '../../../../power-user.js';
 
-import { RESET_SPRITE_LABEL } from './constants.js';
+import { RESET_SPRITE_LABEL, DEFAULT_EXPRESSION_SET, DEFAULT_PLUS_EXPRESSION_SET } from './constants.js';
 import { lastExpression, spriteCache, setLastMessage, lastSegmentResults, lastScenarioDetected, characterSegmentResults, currentCharacterAvatar } from './state.js';
 import { getSettings } from './settings.js';
 import { updateCarousel, removeCarousel, clearAllCarousels } from './segment-carousel.js';
 import { restoreCharacterLayout } from './sprite-layout.js';
-import { getSpritesList, chooseSpriteForExpression as chooseSpriteForExpressionDirect } from './sprites.js';
+import { getSpritesList, chooseSpriteForExpression as chooseSpriteForExpressionDirect, getSpriteFolderNameForCharacterName, getScenarioCharacterAssignmentKey } from './sprites.js';
+import { getCharacterExpressionSet } from './expression-sets.js';
 
 let validateImages = null;
 let updateVisualNovelMode = null;
@@ -183,29 +185,62 @@ export function setNoneForImage(img, expression) {
  * Resolves the sprite folder for a detected scenario character.
  *
  * Resolution order:
- * 1. Try subfolder: {mainFolder}/{charName}; if it has sprites → use it
- * 2. Fall back to the main character's sprite folder (if it has sprites)
- * 3. No sprites anywhere → return null (use built-in defaults)
+ * 1. If a character card with a matching name exists, use its own sprite folder
+ *    (respecting its assigned expression set) → if it has sprites, use it
+ * 2. Otherwise, use a narrator-scoped subfolder ({mainFolder}/{charName}), honoring
+ *    any expression set assigned to that scenario character → if it has sprites, use it
+ * 3. Fall back to the main character's sprite folder (if it has sprites)
+ * 4. No sprites anywhere → return null (use built-in defaults)
  *
  * @param {string} charName - Detected character name from scenario parsing
  * @param {string} mainSpriteFolderName - The card character's sprite folder
  * @returns {Promise<string|null>} Resolved folder path, or null if no sprites exist anywhere
  */
 async function resolveScenarioSpriteFolder(charName, mainSpriteFolderName) {
+    const assignmentKey = getScenarioCharacterAssignmentKey(charName, mainSpriteFolderName);
+    const isRealCharacter = assignmentKey !== `${mainSpriteFolderName}/${charName}`;
+
+    if (isRealCharacter) {
+        // Prefer an actual character card matching this name — lets a scenario NPC
+        // (e.g. "Alice") use her own sprites/expression set instead of guessing a subfolder
+        const ownCharacterFolder = getSpriteFolderNameForCharacterName(charName);
+        if (ownCharacterFolder) {
+            if (spriteCache[ownCharacterFolder] === undefined) {
+                spriteCache[ownCharacterFolder] = await getSpritesList(ownCharacterFolder);
+            }
+            if (Array.isArray(spriteCache[ownCharacterFolder]) && spriteCache[ownCharacterFolder].length > 0) {
+                return ownCharacterFolder;
+            }
+        }
+    } else {
+        // Not a real character card: use a narrator-scoped subfolder, honoring any
+        // expression set assigned to this scenario character via the wand menu
+        const assignedSet = getCharacterExpressionSet(assignmentKey);
+        const setFolder = (assignedSet && assignedSet !== DEFAULT_EXPRESSION_SET && assignedSet !== DEFAULT_PLUS_EXPRESSION_SET)
+            ? `${assignmentKey}/${assignedSet}`
+            : assignmentKey;
+
+        if (spriteCache[setFolder] === undefined) {
+            spriteCache[setFolder] = await getSpritesList(setFolder);
+        }
+        if (Array.isArray(spriteCache[setFolder]) && spriteCache[setFolder].length > 0) {
+            return setFolder;
+        }
+
+        // Assigned set folder is empty — fall back to the subfolder's base sprites
+        if (setFolder !== assignmentKey) {
+            if (spriteCache[assignmentKey] === undefined) {
+                spriteCache[assignmentKey] = await getSpritesList(assignmentKey);
+            }
+            if (Array.isArray(spriteCache[assignmentKey]) && spriteCache[assignmentKey].length > 0) {
+                return assignmentKey;
+            }
+        }
+    }
+
     // Ensure main folder sprites are cached
     if (spriteCache[mainSpriteFolderName] === undefined) {
         spriteCache[mainSpriteFolderName] = await getSpritesList(mainSpriteFolderName);
-    }
-
-    // Try character subfolder: mainFolder/charName
-    const subfolderPath = `${mainSpriteFolderName}/${charName}`;
-    if (spriteCache[subfolderPath] === undefined) {
-        spriteCache[subfolderPath] = await getSpritesList(subfolderPath);
-    }
-
-    // If subfolder has sprites, use it
-    if (Array.isArray(spriteCache[subfolderPath]) && spriteCache[subfolderPath].length > 0) {
-        return subfolderPath;
     }
 
     // Fall back to main character's sprites if available
@@ -234,6 +269,7 @@ async function updateScenarioDisplay(mainSpriteFolderName) {
     // Show VN wrapper, hide single-sprite wrapper
     $('#expression-plus-wrapper').hide();
     vnWrapper.show();
+    vnWrapper.toggleClass('expressions_plus_hide_scenario_labels', settings.scenarioShowNameLabels === false);
 
     const detectedChars = Object.keys(characterSegmentResults);
 
@@ -297,6 +333,14 @@ async function updateScenarioDisplay(mainSpriteFolderName) {
 
             vnWrapper.append(template);
             dragElement($(template[0]));
+            if (settings.scenarioFixedLayout) {
+                const savedLayout = getScenarioLayout(charName);
+                if (savedLayout) {
+                    template.css(savedLayout);
+                    template.data('dragged', true);
+                    template.data('scenario-layout-saved', true);
+                }
+            }
             template.toggleClass('hidden', !shouldShow);
             img = template.find('img');
             img.removeAttr('id');
@@ -328,6 +372,7 @@ async function updateScenarioDisplay(mainSpriteFolderName) {
  * @param {JQuery} container - The VN wrapper container
  */
 async function positionScenarioSprites(container) {
+    const settings = getSettings();
     const images = container.find('.expression-plus-holder[data-scenario-char]:not(.hidden)').toArray();
     if (images.length === 0) return;
 
@@ -367,6 +412,12 @@ async function positionScenarioSprites(container) {
         const elId = el.attr('id');
 
         // Don't reposition if user has dragged it or it has saved movingUIState
+        if (settings.scenarioFixedLayout && el.data('scenario-layout-saved')) {
+            el.css('z-index', i === images.length - 1 ? maxZ : i);
+            currentPosition += widths[i];
+            continue;
+        }
+
         if (el.data('dragged') ||
             (elId && power_user.movingUIState?.[elId] &&
              typeof power_user.movingUIState[elId] === 'object' &&

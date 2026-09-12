@@ -204,3 +204,39 @@ export function saveCharacterLayoutFromElement(avatarFilename, holderElement) {
         saveSettingsDebounced();
     }
 }
+
+/**
+ * Saves a scenario holder's position and size keyed by detected character name.
+ * @param {string} characterName
+ * @param {HTMLElement} holderElement
+ */
+export function saveScenarioLayout(characterName, holderElement) {
+    if (!characterName || !holderElement) return;
+
+    const settings = getSettings();
+    if (!settings.scenarioLayouts) settings.scenarioLayouts = {};
+
+    const style = getComputedStyle(holderElement);
+    const layout = {};
+    for (const prop of LAYOUT_PROPS) {
+        const val = style[prop];
+        if (val && val !== 'auto' && val !== '' && val !== 'unset') {
+            layout[prop] = val;
+        }
+    }
+
+    if (Object.keys(layout).length > 0) {
+        settings.scenarioLayouts[characterName] = layout;
+        saveSettingsDebounced();
+    }
+}
+
+/**
+ * Returns a saved scenario holder layout.
+ * @param {string} characterName
+ * @returns {Record<string, string>|null}
+ */
+export function getScenarioLayout(characterName) {
+    const layout = getSettings().scenarioLayouts?.[characterName];
+    return layout && typeof layout === 'object' ? layout : null;
+}

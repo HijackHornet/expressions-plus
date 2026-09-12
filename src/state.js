@@ -55,6 +55,9 @@ export let lastSegmentResults = null;
  */
 export let characterSegmentResults = {};
 
+/** @type {{[characterName: string]: number}} Consecutive scenario messages without each character */
+export let scenarioMissingCharacterCounts = {};
+
 /**
  * Whether the last classified message was detected as a scenario (multi-character) message
  * @type {boolean}
@@ -225,11 +228,28 @@ export function clearCharacterSegmentResults() {
 }
 
 /**
+ * Clears the consecutive missing-character counters used by scenario mode.
+ */
+export function clearScenarioMissingCharacterCounts() {
+    scenarioMissingCharacterCounts = {};
+}
+
+/**
+ * Sets the number of consecutive scenario messages where a character was absent.
+ * @param {string} characterName
+ * @param {number} count
+ */
+export function setScenarioMissingCharacterCount(characterName, count) {
+    scenarioMissingCharacterCounts[characterName] = count;
+}
+
+/**
  * Clears all segment-related state
  */
 export function clearSegmentState() {
     lastSegmentResults = null;
     characterSegmentResults = {};
+    scenarioMissingCharacterCounts = {};
     lastScenarioDetected = false;
 }
 

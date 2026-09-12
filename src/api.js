@@ -11,7 +11,7 @@ import { getRequestHeaders, substituteParams } from '../../../../../script.js';
 import { trimToEndSentence, trimToStartSentence } from '../../../../utils.js';
 import { getContext } from '../../../../extensions.js';
 
-import { insightPanelVisible, setLastClassificationScores, setLastSegmentResults, setCharacterSegmentResults, clearCharacterSegmentResults, setLastScenarioDetected } from './state.js';
+import { insightPanelVisible, characterSegmentResults, setLastClassificationScores, setLastSegmentResults, setCharacterSegmentResults, clearCharacterSegmentResults, clearScenarioMissingCharacterCounts, setLastScenarioDetected, scenarioMissingCharacterCounts, setScenarioMissingCharacterCount } from './state.js';
 import { getSettings } from './settings.js';
 import { DEFAULT_SAMPLE_SIZE } from './constants.js';
 import { selectExpression } from './classification.js';
@@ -241,6 +241,7 @@ export async function getExpressionLabel(text, cardCharacterName) {
     // Clear scenario state when not detected
     setLastScenarioDetected(false);
     clearCharacterSegmentResults();
+    clearScenarioMissingCharacterCounts();
 
     const segmentResults = await classifyMessageSegments(text);
 
@@ -285,8 +286,36 @@ async function classifyScenarioMessage(text, cardCharacterName) {
     const segments = detectScenarioSegments(text, cardCharacterName);
     if (segments.length === 0) return null;
 
+    const settings = getSettings();
+    const missingLimit = Math.max(1, Math.min(20, Number(settings.scenarioMissingMessages) || 1));
+    const detectedCharacterNames = new Set(segments.map(segment => segment.characterName));
+    const previousCharacterNames = Object.keys(characterSegmentResults);
+    const retainedCharacterResults = {};
+
+    // Keep a character's last sprite visible for the configured number of
+    // messages in which that character is not present.
+    for (const characterName of previousCharacterNames) {
+        if (detectedCharacterNames.has(characterName)) {
+            setScenarioMissingCharacterCount(characterName, 0);
+            continue;
+        }
+
+        const missingCount = (scenarioMissingCharacterCounts[characterName] || 0) + 1;
+        setScenarioMissingCharacterCount(characterName, missingCount);
+        if (missingCount >= missingLimit) {
+            delete characterSegmentResults[characterName];
+            delete scenarioMissingCharacterCounts[characterName];
+        } else {
+            retainedCharacterResults[characterName] = characterSegmentResults[characterName];
+        }
+    }
+
     setLastScenarioDetected(true);
     clearCharacterSegmentResults();
+
+    for (const [characterName, results] of Object.entries(retainedCharacterResults)) {
+        setCharacterSegmentResults(characterName, results);
+    }
 
     let lastExpression = null;
     let lastScores = [];
@@ -297,6 +326,7 @@ async function classifyScenarioMessage(text, cardCharacterName) {
 
         if (segmentResults.length > 0) {
             setCharacterSegmentResults(segment.characterName, segmentResults);
+            setScenarioMissingCharacterCount(segment.characterName, 0);
 
             const lastResult = segmentResults[segmentResults.length - 1];
             lastExpression = lastResult.expression;

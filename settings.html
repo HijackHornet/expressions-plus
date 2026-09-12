@@ -191,6 +191,24 @@
                     </label>
                     <small><i class="fa-solid fa-circle-info"></i> Requires Visual Novel mode to be enabled.</small>
 
+                    <label class="checkbox_label marginTop5" for="expressions_plus_scenario_show_labels" title="Shows the detected character's name above their sprite in the visual novel wrapper.">
+                        <input id="expressions_plus_scenario_show_labels" type="checkbox">
+                        <span>Show character name above sprite</span>
+                    </label>
+
+                    <label class="checkbox_label marginTop5" for="expressions_plus_scenario_fixed_layout" title="Keep each scenario character's manually positioned and resized sprite in the same place when it disappears and returns.">
+                        <input id="expressions_plus_scenario_fixed_layout" type="checkbox">
+                        <span>Keep fixed sprite positions and sizes</span>
+                    </label>
+
+                    <div class="flex-container flexFlowColumn marginTop5">
+                        <label for="expressions_plus_scenario_missing_messages">Messages absent before hiding a sprite</label>
+                        <div class="flex-container gap5px alignItemsCenter">
+                            <input type="number" id="expressions_plus_scenario_missing_messages" class="text_pole" min="1" max="20" step="1" value="1">
+                            <small>Consecutive scenario messages where the character is not detected.</small>
+                        </div>
+                    </div>
+
                     <div class="flex-container flexFlowColumn marginTop5">
                         <label>Detection Patterns</label>
                         <small>Enable one or more patterns. All enabled patterns are combined (OR) for detection.</small>
